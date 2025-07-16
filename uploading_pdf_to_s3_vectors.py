@@ -24,7 +24,7 @@ bedrock_client = boto3.client("bedrock-runtime",
                               aws_access_key_id=AWS_ACCESS_KEY_ID,
                               aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
 
-# ------------------- HELPER FUNCTIONS -------------------
+# ------------------- INDEX HELPERS -------------------
 
 def list_vector_buckets():
     response = s3_vector.list_vector_buckets()
@@ -57,6 +57,8 @@ def create_vector_index(index_name=INDEX_NAME):
     else:
         ic("Index already exists.")
 
+# ------------------- EMBEDDING -------------------
+
 def generate_embedding(text: str):
     response = bedrock_client.invoke_model(
         modelId=VECTOR_MODEL_ID,
@@ -64,38 +66,66 @@ def generate_embedding(text: str):
     )
     return json.loads(response["body"].read())["embedding"]
 
-# ------------------- PDF QUESTION PARSING -------------------
+# ------------------- PDF PARSING -------------------
 
-def extract_questions_from_pdf(pdf_path):
+def extract_paragraphs_from_pdf(pdf_path):
     doc = fitz.open(pdf_path)
     full_text = ""
     for page in doc:
         full_text += page.get_text()
     doc.close()
 
-    # Use regex to extract lines ending with '?' as questions
-    questions = re.findall(r"([^\n]{5,}?\?)", full_text)
-    return [q.strip() for q in questions if len(q.strip()) > 10]
+    # Split into paragraphs
+    paragraphs = [p.strip().replace('\n', ' ') for p in full_text.split("\n\n") if len(p.strip()) > 20]
+    return paragraphs
 
-# ------------------- VECTOR INSERTION -------------------
+# ------------------- EMBED & STORE CHUNK -------------------
 
-def insert_questions_from_pdfs(pdf_paths, vector_bucket_name, index_name):
+def embed_and_store(text, pdf_path, vectors_list):
+    if len(text.strip()) < 30:
+        return  # Skip short content
+
+    embedding = generate_embedding(text)
+
+    # Truncate description to stay well within 2048-byte filterable metadata limit
+    short_description = text.strip()[:512]
+
+    vectors_list.append({
+        "key": str(uuid.uuid4()),
+        "data": {"float32": embedding},
+        "metadata": {
+            "description": short_description,
+            "source_pdf": os.path.basename(pdf_path)
+        }
+    })
+
+# ------------------- VECTOR INSERTION (with chunking) -------------------
+
+def insert_descriptions_from_pdfs(pdf_paths, vector_bucket_name, index_name):
     vectors = []
-    
-    for pdf_path in pdf_paths:
-        questions = extract_questions_from_pdf(pdf_path)
-        ic(f"Extracted {len(questions)} questions from {pdf_path}")
 
-        for question in questions:
-            embedding = generate_embedding(question)
-            vectors.append({
-                "key": str(uuid.uuid4()),
-                "data": {"float32": embedding},
-                "metadata": {
-                    "question": question,
-                    "source_pdf": os.path.basename(pdf_path)
-                }
-            })
+    for pdf_path in pdf_paths:
+        paragraphs = extract_paragraphs_from_pdf(pdf_path)
+        ic(f"Extracted {len(paragraphs)} paragraphs from {pdf_path}")
+
+        for desc in paragraphs:
+            if len(desc) > 50000:
+                # Chunk large text into ~4000-character pieces
+                sentences = re.split(r'(?<=[.?!])\s+', desc)
+                current_chunk = ""
+
+                for sentence in sentences:
+                    if len(current_chunk) + len(sentence) < 4000:
+                        current_chunk += sentence + " "
+                    else:
+                        embed_and_store(current_chunk.strip(), pdf_path, vectors)
+                        current_chunk = sentence + " "
+
+                if current_chunk.strip():
+                    embed_and_store(current_chunk.strip(), pdf_path, vectors)
+
+            else:
+                embed_and_store(desc, pdf_path, vectors)
 
     if vectors:
         s3_vector.put_vectors(
@@ -103,13 +133,13 @@ def insert_questions_from_pdfs(pdf_paths, vector_bucket_name, index_name):
             indexName=index_name,
             vectors=vectors
         )
-        ic(f"Inserted {len(vectors)} questions into vector DB.")
+        ic(f"Inserted {len(vectors)} descriptions into vector DB.")
     else:
-        ic("No questions found to insert.")
+        ic("No valid descriptions found to insert.")
 
 # ------------------- VECTOR QUERY -------------------
 
-def query_vector_store(query_text, top_k=3):
+def query_vector_store(query_text, top_k=2):
     embedding = generate_embedding(query_text)
     response = s3_vector.query_vectors(
         vectorBucketName=VECTOR_BUCKET_NAME,
@@ -124,18 +154,22 @@ def query_vector_store(query_text, top_k=3):
 def search_vector_store():
     input_text = "How GenAI can add value for educators and students"
     vectors = query_vector_store(input_text)
+
     for result in vectors:
-        ic(result["metadata"]["question"], result["distance"])
+        metadata = result["metadata"]
+        print("\n---")
+        print("📄 Description:", metadata.get("description"))
+        print("📁 Source:", metadata.get("source_pdf"))
+        print("📏 Distance:", round(result["distance"], 4))
 
 # ------------------- MAIN -------------------
 
 if __name__ == "__main__":
-    # Add your uploaded PDF file paths here
     pdf_files = [
         "genai_book.pdf",
     ]
 
     list_vector_buckets()
     create_vector_index(INDEX_NAME)
-    insert_questions_from_pdfs(pdf_files, VECTOR_BUCKET_NAME, INDEX_NAME)
+    insert_descriptions_from_pdfs(pdf_files, VECTOR_BUCKET_NAME, INDEX_NAME)
     search_vector_store()
