@@ -10,8 +10,8 @@ AWS_ACCESS_KEY_ID = 'XXX'
 AWS_SECRET_ACCESS_KEY = 'XXX'
 
 # Configuration
-VECTOR_BUCKET_NAME = "test-s3-vectordb"
-INDEX_NAME = "test-s3-vectordb-index"
+VECTOR_BUCKET_NAME = "vikash_test-s3-vectordb"
+INDEX_NAME = "vikash_test-s3-vectordb-index"
 VECTOR_DIMENSION = 1024
 VECTOR_MODEL_ID = "amazon.titan-embed-text-v2:0"
 TEXT_GEN_MODEL_ID = "amazon.titan-text-express-v1"
