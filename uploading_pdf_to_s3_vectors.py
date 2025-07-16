@@ -173,3 +173,27 @@ if __name__ == "__main__":
     create_vector_index(INDEX_NAME)
     insert_descriptions_from_pdfs(pdf_files, VECTOR_BUCKET_NAME, INDEX_NAME)
     search_vector_store()
+
+
+
+Response:-
+(pdfvenv) C:\Users\Desktop\Gen_AI\project\chat_pdf\s3_vectordb>python upload_pdf_v1.py
+ic| buckets: ['bedrock-knowledge-base-3ek', 'test-s3-vectordb']
+ic| 'Index already exists.'
+ic| f"Extracted {len(paragraphs)} paragraphs from {pdf_path}": 'Extracted 1 paragraphs from C:/Users/Desktop/Gen_AI/project/chat_pdf/s3_vectordb/genai_book.pdf'
+ic| f"Inserted {len(vectors)} descriptions into vector DB.": 'Inserted 133 descriptions into vector DB.'
+
+---
+📄 Description: The use of GenAI in college applications is another hot topic. Common App,  the college application tool used by more than 1000 institutions, has included  a restriction on the use of “substantive content or output of an artificial intel- ligence platform” in college applications.13 (Although, my question is, how on  earth do they police this? How do they intend to identify when a “substantive”  amount of content has been written by GenAI?) Here in the UK, I’ve already mentioned that the UK Department for E
+📁 Source: genai_book.pdf
+📏 Distance: 0.2734
+
+---
+📄 Description: They will need guid- ance on how to gather evidence – and what constitutes good evidence – in a  world where you can just ask a chatbot for information and immediately be  given an answer. And of course, students will need to learn how to be digitally literate. I’m not  talking about teaching every young person how to code; rather, I’m talking  about teaching every young person about AI and its impact on our world. That includes understanding the potential for misinformation, understand- ing the potential f
+📁 Source: genai_book.pdf
+📏 Distance: 0.2809
+
+---
+📄 Description: GenAI can also be used to generate personalized  ­ follow-­ up questions to help cement understanding. Plus, GenAI can create indi- vidual homework plans for each student. We’re talking about adaptive learning,  ­ basically – learning that is tailored to each student’s needs, and to their pace. Another significant application is in content creation. GenAI can generate  educational materials such as quizzes, interactive games, flashcards, lesson  plans, and even entire textbooks or video courses, making it e
+📁 Source: genai_book.pdf
+📏 Distance: 0.3038
